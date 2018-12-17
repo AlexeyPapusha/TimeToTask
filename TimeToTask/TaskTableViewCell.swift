@@ -16,8 +16,6 @@ class TaskTableViewCell: UITableViewCell {
     
     weak var delegate: TaskTableViewCellDelegate?
     
-    var btimer: Timer?
-    
     @IBAction func playTapped(_ sender: UIButton) {
         delegate?.taskTableViewCellDidTapPlay(self)
     }

@@ -11,16 +11,26 @@ import UIKit
 class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate {
     
     var tasks: [Task] = [Task]()
+    var timers: [Timer?] = [Timer?]()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        loadTasks()
+    }
+    
+    func loadTasks() {
         if let tasksData = UserDefaults.standard.data(forKey: "taskList") {
             tasks = try! JSONDecoder().decode([Task].self, from: tasksData)
+            if tasks.count > 0 {
+                for _ in 1...tasks.count {
+                    timers.append(Timer())
+                }
+            }
         } else {
             tasks = [Task]()
+            timers = [Timer?]()
         }
-//        restoreStatus()
     }
     
     func saveTasks() {
@@ -39,10 +49,19 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
         let textStop = "Pause"
         
         cell.label.text = task.name
+        
         if task.totalTime != 0 {
             if task.stopWatchIsOn {
                 cell.playButton.backgroundColor = #colorLiteral(red: 1, green: 0.5781051517, blue: 0, alpha: 1)
-                cell.btimer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(TasksTableViewController.change(sender:)), userInfo: indexPath, repeats: true)
+                
+                if timers[indexPath.row] == nil {
+                    timers[indexPath.row] = Timer.scheduledTimer(
+                        timeInterval: 0.01,
+                        target: self,
+                        selector: #selector(TasksTableViewController.change(sender:)),
+                        userInfo: indexPath,
+                        repeats: true)
+                }
                 cell.playButton.setTitle(textStop, for: UIControl.State.normal)
             } else {
                 let displayTime = task.totalTime
@@ -50,12 +69,18 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
             }
         } else if task.stopWatchIsOn {
             cell.playButton.backgroundColor = #colorLiteral(red: 1, green: 0.5781051517, blue: 0, alpha: 1)
-            cell.btimer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(TasksTableViewController.change(sender:)), userInfo: indexPath, repeats: true)
+            
+            if timers[indexPath.row] == nil {
+                timers[indexPath.row] = Timer.scheduledTimer(
+                    timeInterval: 0.01,
+                    target: self,
+                    selector: #selector(TasksTableViewController.change(sender:)),
+                    userInfo: indexPath,
+                    repeats: true)
+            }
             cell.playButton.setTitle(textStop, for: UIControl.State.normal)
         }
-        
         cell.delegate = self
-        
         return cell
     }
     
@@ -64,10 +89,21 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
     }
     
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        
         if editingStyle == .delete {
+            
+            pauseTimers()
+            
             tasks.remove(at: indexPath.row)
-            saveTasks()
+            timers.remove(at: indexPath.row)
+            
+            tableView.beginUpdates()
             tableView.deleteRows(at: [indexPath], with: UITableView.RowAnimation.automatic)
+            tableView.endUpdates()
+            
+            saveTasks()
+            
+            refreshTimers()
         }
     }
     
@@ -76,10 +112,21 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
     }
     
     override func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
-        let itemToMove = tasks[sourceIndexPath.row]
+        
+        pauseTimers()
+        
+        let task = tasks[sourceIndexPath.row]
+        let timer = timers[sourceIndexPath.row]
+        
         tasks.remove(at: sourceIndexPath.row)
-        tasks.insert(itemToMove, at: destinationIndexPath.row)
+        tasks.insert(task, at: destinationIndexPath.row)
+        
+        timers.remove(at: sourceIndexPath.row)
+        timers.insert(timer, at: destinationIndexPath.row)
+        
         saveTasks()
+        
+        refreshTimers()
     }
 
     @IBAction func startEditing(_ sender: Any) {
@@ -89,14 +136,20 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
     @IBAction func deleteRows(_ sender: Any) {
         
         if let selectedRows = tableView.indexPathsForSelectedRows {
+            
+            pauseTimers()
+            
             for indexPath in selectedRows {
                 tasks.remove(at: indexPath.row)
+                timers.remove(at: indexPath.row)
                 saveTasks()
             }
             
             tableView.beginUpdates()
             tableView.deleteRows(at: selectedRows, with: .automatic)
             tableView.endUpdates()
+            
+            refreshTimers()
         }
     }
     
@@ -107,7 +160,9 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
         let newTask: Task = Task(taskName: taskVC.name)
         
         tasks.append(newTask)
+        timers.append(Timer())
         saveTasks()
+        
         tableView.reloadData()
     }
     
@@ -116,12 +171,12 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
         guard let tappedIndexPath = tableView.indexPath(for: sender) else { return }
         let task = tasks[tappedIndexPath.row]
         
-        sender.btimer?.invalidate()
+        timers[tappedIndexPath.row]?.invalidate()
         if !task.stopWatchIsOn {
             sender.playButton.backgroundColor = #colorLiteral(red: 1, green: 0.5781051517, blue: 0, alpha: 1)
             task.stopWatchIsOn = true
             task.startTime = Date()
-            sender.btimer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(TasksTableViewController.change(sender:)), userInfo: tappedIndexPath, repeats: true)
+            timers[tappedIndexPath.row] = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(TasksTableViewController.change(sender:)), userInfo: tappedIndexPath, repeats: true)
             let textStop = "Pause"
             sender.playButton.setTitle(textStop, for: UIControl.State.normal)
         } else {
@@ -153,6 +208,22 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
     
         cell.display.text = covertTimeInterval(interval: TimeInterval(displayTime))
         saveTasks()
+    }
+    
+    func pauseTimers() {
+        timers.forEach { timer in
+            timer?.invalidate()
+        }
+    }
+    
+    func refreshTimers() {
+        for indexPath in tableView.indexPathsForVisibleRows! {
+            if tasks[indexPath.row].stopWatchIsOn {
+                timers[indexPath.row] = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(TasksTableViewController.change(sender:)), userInfo: indexPath, repeats: true)
+            } else {
+                timers[indexPath.row] = Timer()
+            }
+        }
     }
 }
 
