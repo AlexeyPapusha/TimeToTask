@@ -18,8 +18,4 @@ class Task: Codable {
     init(taskName: String) {
         name = taskName
     }
-    
-    init() {
-        name = "taskName"
-    }
 }
