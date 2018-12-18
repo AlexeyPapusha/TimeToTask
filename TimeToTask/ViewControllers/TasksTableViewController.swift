@@ -45,29 +45,13 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "taskCell", for: indexPath) as! TaskTableViewCell
+        let zeroTime = "00:00:00.00"
         let task = tasks[indexPath.row]
         let textStop = "Pause"
         
         cell.label.text = task.name
         
-        if task.totalTime != 0 {
-            if task.stopWatchIsOn {
-                cell.playButton.backgroundColor = #colorLiteral(red: 1, green: 0.5781051517, blue: 0, alpha: 1)
-                
-                if timers[indexPath.row] == nil {
-                    timers[indexPath.row] = Timer.scheduledTimer(
-                        timeInterval: 0.01,
-                        target: self,
-                        selector: #selector(TasksTableViewController.change(sender:)),
-                        userInfo: indexPath,
-                        repeats: true)
-                }
-                cell.playButton.setTitle(textStop, for: UIControl.State.normal)
-            } else {
-                let displayTime = task.totalTime
-                cell.display.text = covertTimeInterval(interval: TimeInterval(displayTime))
-            }
-        } else if task.stopWatchIsOn {
+        if task.stopWatchIsOn {
             cell.playButton.backgroundColor = #colorLiteral(red: 1, green: 0.5781051517, blue: 0, alpha: 1)
             
             if timers[indexPath.row] == nil {
@@ -79,6 +63,13 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
                     repeats: true)
             }
             cell.playButton.setTitle(textStop, for: UIControl.State.normal)
+        } else {
+            if task.totalTime != 0 {
+                let displayTime = task.totalTime
+                cell.display.text = covertTimeInterval(interval: TimeInterval(displayTime))
+            } else {
+                cell.display.text = zeroTime
+            }
         }
         cell.delegate = self
         return cell
@@ -186,6 +177,7 @@ class TasksTableViewController: UITableViewController, TaskTableViewCellDelegate
             sender.playButton.backgroundColor = #colorLiteral(red: 0.5563425422, green: 0.9793455005, blue: 0, alpha: 1)
             task.totalTime += Date().timeIntervalSince(task.startTime)
         }
+        saveTasks()
     }
     
     func covertTimeInterval(interval: TimeInterval) -> String {
